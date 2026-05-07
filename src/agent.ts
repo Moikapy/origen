@@ -14,7 +14,7 @@ import {
   adaptTools,
   convertMessages,
   buildContext,
-  agentToStreamEvents,
+  createEventStream,
   resolveModel,
 } from "./adapter";
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
@@ -178,14 +178,32 @@ export async function* streamOrigen(
     toolExecution: config.toolExecution ?? "parallel",
   });
 
-  // Stream events
-  try {
-    await agent.prompt(piMessages as any);
+  // CRITICAL: Create event stream BEFORE calling prompt.
+  // createEventStream subscribes eagerly (synchronously), so no events
+  // are missed even though agent.prompt() emits events during execution.
+  const { stream, unsubscribe } = createEventStream(agent, extractCitations);
 
-    yield* agentToStreamEvents(agent, extractCitations);
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    yield { type: "error", message: `Agent error: ${msg}` };
+  let streamError: string | null = null;
+
+  // Start prompt without awaiting — events flow through active subscription
+  agent.prompt(piMessages as any).catch((error) => {
+    // If prompt throws without emitting agent_end, capture error
+    // to yield after the stream ends
+    streamError = error instanceof Error ? error.message : String(error);
+    unsubscribe(); // clean up since agent won't emit agent_end
+  });
+
+  try {
+    for await (const event of stream) {
+      yield event;
+    }
+  } finally {
+    unsubscribe();
+  }
+
+  // If prompt() threw without emitting events, yield the error now
+  if (streamError) {
+    yield { type: "error", message: `Agent error: ${streamError}` };
   }
 }
 

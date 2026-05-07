@@ -54,5 +54,5 @@ export {
   type StreamEvent,
 } from "./agent";
 
-export { resolveModel } from "./adapter";
+export { resolveModel, createEventStream } from "./adapter";
 export type { ModelResolutionOptions } from "./adapter";

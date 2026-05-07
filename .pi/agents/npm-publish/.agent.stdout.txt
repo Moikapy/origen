@@ -1,0 +1,8 @@
+✅ **Published!** `@moikapy/origen@0.3.0` is live on npm.
+
+**Summary:**
+- **Step 1:** Confirmed `@moikapy/origen@0.3.0` ✓
+- **Step 2:** Authenticated as `moikapy` ✓
+- **Step 3:** Published to `https://registry.npmjs.org/` ✓
+
+**One caveat worth noting:** `main` points to `./src/index.ts` (raw TypeScript). If you want consumers using plain `node` or bundlers that don't handle `.ts` to import it cleanly, you may want to add a build step that outputs to `dist/` and point `main` there. For now, anyone using Bun or a TS-aware bundler will be fine.

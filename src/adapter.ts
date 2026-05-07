@@ -320,17 +320,29 @@ export function translateEvent(
 }
 
 /**
- * Subscribe to an Agent and yield Origen StreamEvents.
- * Handles the full lifecycle from agent_start to agent_end.
+ * Eagerly subscribe to an Agent and return an async iterable of Origen StreamEvents.
+ *
+ * CRITICAL: The subscription is created synchronously when this function is called,
+ * BEFORE agent.prompt() starts. This avoids the race condition where events
+ * emitted during prompt() are missed if subscription happens after.
+ *
+ * Usage:
+ *   const { stream, unsubscribe } = createEventStream(agent, extractCitations);
+ *   agent.prompt(messages); // events flow into stream via active subscription
+ *   for await (const event of stream) { ... }
  */
-export async function* agentToStreamEvents(
+export function createEventStream(
   agent: any, // Agent from pi-agent-core
   extractCitations?: (text: string) => Citation[]
-): AsyncGenerator<StreamEvent> {
+): {
+  stream: AsyncGenerator<StreamEvent>;
+  unsubscribe: () => void;
+} {
   const queue: StreamEvent[] = [];
   let resolve: (() => void) | null = null;
   let done = false;
 
+  // Subscribe IMMEDIATELY (before prompt is called)
   const unsubscribe = agent.subscribe((event: AgentEvent) => {
     const translated = translateEvent(event, extractCitations);
     if (translated) {
@@ -349,16 +361,35 @@ export async function* agentToStreamEvents(
     }
   });
 
-  try {
-    while (!done || queue.length > 0) {
-      if (queue.length > 0) {
-        yield queue.shift()!;
-        continue;
+  async function* stream(): AsyncGenerator<StreamEvent> {
+    try {
+      while (!done || queue.length > 0) {
+        if (queue.length > 0) {
+          yield queue.shift()!;
+          continue;
+        }
+        if (done) break;
+        await new Promise<void>((r) => { resolve = r; });
       }
-      if (done) break;
-      await new Promise<void>((r) => { resolve = r; });
+    } finally {
+      unsubscribe();
     }
-  } finally {
-    unsubscribe();
   }
+
+  return { stream: stream(), unsubscribe };
+}
+
+/**
+ * Subscribe to an Agent and yield Origen StreamEvents.
+ * Handles the full lifecycle from agent_start to agent_end.
+ *
+ * @deprecated Use createEventStream() instead to avoid race conditions.
+ * This function subscribes lazily (on first iteration) which can miss events
+ * if the agent has already started emitting.
+ */
+export async function* agentToStreamEvents(
+  agent: any,
+  extractCitations?: (text: string) => Citation[]
+): AsyncGenerator<StreamEvent> {
+  yield* createEventStream(agent, extractCitations).stream;
 }
