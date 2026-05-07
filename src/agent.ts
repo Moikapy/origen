@@ -1,0 +1,219 @@
+/**
+ * Origen — Agent Engine (v0.3)
+ *
+ * Multi-provider agent harness built on pi-ai + pi-agent-core.
+ * Supports OpenRouter, Ollama, Anthropic, Google, and any OpenAI-compatible API.
+ * Soul.md personas, streaming, parallel tool execution, abort support.
+ */
+
+import { Agent } from "@mariozechner/pi-agent-core";
+import { streamSimple } from "@mariozechner/pi-ai";
+import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import { z } from "zod";
+import {
+  adaptTools,
+  convertMessages,
+  buildContext,
+  agentToStreamEvents,
+  resolveModel,
+} from "./adapter";
+import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
+import type { D1Provider, Citation, UsageInfo } from "./types";
+
+// ── Tool definition ───────────────────────────────────────────────────
+
+/**
+ * A tool that the host app registers with Origen.
+ * Simple interface: name, description, JSON schema, and an execute function
+ * that receives (args, getD1). The adapter wraps this into pi-agent-core's AgentTool.
+ */
+export interface OrigenTool {
+  name: string;
+  description: string;
+  /** OpenAI function-calling parameter schema (JSON) */
+  parameters: Record<string, unknown>;
+  /** Zod schema for runtime validation (optional) */
+  inputSchema?: z.ZodType;
+  execute: (args: Record<string, unknown>, getD1: D1Provider) => Promise<string>;
+}
+
+// ── Agent configuration ───────────────────────────────────────────────
+
+export interface AgentConfig {
+  appName?: string;
+  systemPrompt?: string;
+  tools: OrigenTool[];
+  getD1: D1Provider;
+  model?: ModelId;
+  maxSteps?: number;
+  /** Custom citation extractor */
+  extractCitations?: (text: string) => Citation[];
+  /** Dynamic API key resolution per provider (e.g., for expiring OAuth tokens) */
+  getApiKey?: (provider: string) => Promise<string | undefined>;
+  /** Ollama base URL override (default: http://localhost:11434/v1) */
+  ollamaBaseUrl?: string;
+  /** Tool execution mode: "parallel" (default) or "sequential" */
+  toolExecution?: "sequential" | "parallel";
+  /** Abort signal for cancellation */
+  signal?: AbortSignal;
+  /** Reasoning/thinking level for models that support it */
+  thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high";
+}
+
+// ── Auth check ────────────────────────────────────────
+
+export interface AuthCheckResult {
+  authenticated: boolean;
+  apiKey: string | null;
+  provider?: string;
+  error?: string;
+}
+
+/**
+ * Provider-aware auth check. Tests key availability for each provider.
+ * If no provider argument, checks OpenRouter + Ollama availability.
+ */
+export async function checkAuth(
+  getApiKey: ((provider: string) => Promise<string | undefined>) | (() => Promise<string | null>),
+): Promise<AuthCheckResult> {
+  // Normalize to per-provider signature
+  const getProviderKey = getApiKey.length >= 1
+    ? getApiKey as (provider: string) => Promise<string | undefined>
+    : async (provider: string) => {
+        const key = await (getApiKey as () => Promise<string | null>)();
+        return key ?? undefined;
+      };
+
+  // Try OpenRouter first
+  const orKey = await getProviderKey("openrouter");
+  if (orKey) return { authenticated: true, apiKey: orKey, provider: "openrouter" };
+
+  // Try Ollama
+  const ollamaKey = await getProviderKey("ollama");
+  if (ollamaKey) return { authenticated: true, apiKey: ollamaKey, provider: "ollama" };
+
+  // Try Anthropic
+  const anthropicKey = await getProviderKey("anthropic");
+  if (anthropicKey) return { authenticated: true, apiKey: anthropicKey, provider: "anthropic" };
+
+  return {
+    authenticated: false,
+    apiKey: null,
+    error: "Connect your OpenRouter account or configure Ollama to enable AI-powered study.",
+  };
+}
+
+/** Convenience: check OpenRouter auth only (backward compat). */
+export async function checkOpenRouterAuth(
+  getApiKey: () => Promise<string | null>
+): Promise<AuthCheckResult> {
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    return { authenticated: false, apiKey: null, error: "Connect your OpenRouter account to enable AI-powered study." };
+  }
+  return { authenticated: true, apiKey, provider: "openrouter" };
+}
+
+// ── Stream event types ─────────────────────────────────────────────────
+
+export type StreamEvent =
+  | { type: "reasoning"; content: string }
+  | { type: "tool_call"; name: string; args: Record<string, unknown> }
+  | { type: "tool_result"; name: string; result: string }
+  | { type: "text"; content: string }
+  | { type: "done"; message: string; citations: Citation[]; usage?: UsageInfo }
+  | { type: "error"; message: string };
+
+// ── Streaming agent call ───────────────────────────────────────────────
+
+export async function* streamOrigen(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  context: Record<string, unknown> | undefined,
+  config: AgentConfig,
+  apiKey?: string,
+): AsyncGenerator<StreamEvent> {
+  const systemPrompt = config.systemPrompt ?? `You are ${config.appName ?? "Origen"}, an AI assistant. Use your tools to help the user.`;
+  const modelId = config.model ?? DEFAULT_MODEL_ID;
+  const maxSteps = config.maxSteps ?? 5;
+  const extractCitations = config.extractCitations;
+
+  // Resolve model to pi-ai Model object
+  const model = resolveModel(modelId, { ollamaBaseUrl: config.ollamaBaseUrl });
+
+  // Adapt tools to AgentTool format
+  const adaptedTools = adaptTools(config.tools, config.getD1);
+
+  // Convert messages
+  let piMessages = convertMessages(messages);
+
+  // Inject context into last user message
+  if (context && piMessages.length > 0) {
+    const lastIdx = piMessages.length - 1;
+    const lastMsg = piMessages[lastIdx];
+    if (lastMsg.role === "user") {
+      piMessages[lastIdx] = {
+        ...lastMsg,
+        content: `[Context: ${JSON.stringify(context)}] ${typeof lastMsg.content === "string" ? lastMsg.content : ""}`,
+      };
+    }
+  }
+
+  // Resolve API key per provider
+  const resolveApiKey = async (provider: string): Promise<string | undefined> => {
+    if (config.getApiKey) return config.getApiKey(provider);
+    if (apiKey) return apiKey;
+    return undefined;
+  };
+
+  // Create Agent
+  const agent = new Agent({
+    initialState: {
+      systemPrompt,
+      model,
+      thinkingLevel: config.thinkingLevel ?? (THINKING_MODELS.has(modelId) ? "medium" : "off"),
+      tools: adaptedTools,
+      messages: piMessages as any,
+    },
+    getApiKey: resolveApiKey,
+    toolExecution: config.toolExecution ?? "parallel",
+  });
+
+  // Stream events
+  try {
+    await agent.prompt(piMessages as any);
+
+    yield* agentToStreamEvents(agent, extractCitations);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    yield { type: "error", message: `Agent error: ${msg}` };
+  }
+}
+
+// ── Non-streaming agent call ──────────────────────────────────────────
+
+export interface AgentResponse {
+  message: string;
+  citations: Citation[];
+  usage?: UsageInfo;
+}
+
+export async function callOrigen(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  context: Record<string, unknown> | undefined,
+  config: AgentConfig,
+  apiKey?: string,
+): Promise<AgentResponse> {
+  let message = "";
+  const citations: Citation[] = [];
+  let usage: UsageInfo | undefined;
+
+  for await (const event of streamOrigen(messages, context, config, apiKey)) {
+    switch (event.type) {
+      case "text": message += event.content; break;
+      case "done": citations.push(...event.citations); usage = event.usage; break;
+      case "error": throw new Error(event.message);
+    }
+  }
+
+  return { message, citations, usage };
+}
