@@ -37,6 +37,9 @@ export {
   isOllamaModel,
   getModelsByProvider,
   getModelsForUI,
+  fetchOllamaModels,
+  mergeOllamaModels,
+  discoverOllamaModels,
   type ModelId,
   type ModelConfig,
   type UIModelConfig,
@@ -54,7 +57,7 @@ export {
   type StreamEvent,
 } from "./agent";
 
-export { resolveModel, createEventStream } from "./adapter";
+export { resolveModel, createEventStream, defaultCitationExtractor } from "./adapter";
 export type { ModelResolutionOptions } from "./adapter";
 
 export { loadSoul } from "./soul";

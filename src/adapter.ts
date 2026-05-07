@@ -9,6 +9,7 @@
 import { getModel } from "@mariozechner/pi-ai";
 import type { Model, Api, Message, Context, Tool } from "@mariozechner/pi-ai";
 import type { AgentTool, AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+import type { TSchema } from "typebox";
 import type { OrigenTool, StreamEvent } from "./agent";
 import type { D1Provider, Citation, UsageInfo } from "./types";
 
@@ -25,10 +26,13 @@ export function adaptTool(tool: OrigenTool, getD1: D1Provider): AgentTool {
     // Convert JSON schema to TypeBox format — pi-agent-core uses TypeBox
     // but accepts plain JSON schemas for the tool definition sent to the LLM.
     // We provide parameters as a TypeBox-like schema.
+    // OrigenTool uses plain JSON schema objects; pi-agent-core expects TSchema (TypeBox).
+    // TypeBox accepts plain JSON schemas at runtime — the type mismatch is cosmetic.
+    // We widen to TSchema to satisfy the type system while preserving runtime correctness.
     parameters: {
       type: "object",
       ...tool.parameters,
-    } as any,
+    } as TSchema,
     label: tool.name,
     execute: async (_toolCallId, params, _signal) => {
       const result = await tool.execute(params as Record<string, unknown>, getD1);
@@ -52,7 +56,11 @@ export interface ModelResolutionOptions {
   ollamaBaseUrl?: string;
 }
 
-/** Known Ollama models that don't exist in pi-ai's generated registry. */
+/** Known Ollama models with their config defaults.
+ *  Context windows and maxTokens are conservative defaults — actual values
+ *  depend on the specific quantization the user has installed.
+ *  For models not in this list, resolveModel() creates a generic Ollama config.
+ */
 const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
   "ollama/llama3": {
     id: "llama3",
@@ -66,6 +74,18 @@ const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
     contextWindow: 8192,
     maxTokens: 4096,
   },
+  "ollama/llama3.1": {
+    id: "llama3.1",
+    name: "Llama 3.1 (Ollama)",
+    api: "openai-completions",
+    provider: "ollama",
+    baseUrl: "http://localhost:11434/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 131072,
+    maxTokens: 4096,
+  },
   "ollama/gemma3": {
     id: "gemma3",
     name: "Gemma 3 (Ollama)",
@@ -75,12 +95,12 @@ const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 8192,
-    maxTokens: 4096,
+    contextWindow: 131072,
+    maxTokens: 8192,
   },
   "ollama/mistral": {
     id: "mistral",
-    name: "Mistral (Ollama)",
+    name: "Mistral 7B (Ollama)",
     api: "openai-completions",
     provider: "ollama",
     baseUrl: "http://localhost:11434/v1",
@@ -88,6 +108,18 @@ const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 32768,
+    maxTokens: 4096,
+  },
+  "ollama/mistral-nemo": {
+    id: "mistral-nemo",
+    name: "Mistral Nemo (Ollama)",
+    api: "openai-completions",
+    provider: "ollama",
+    baseUrl: "http://localhost:11434/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 131072,
     maxTokens: 4096,
   },
   "ollama/qwen3": {
@@ -99,8 +131,8 @@ const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
     reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 32768,
-    maxTokens: 4096,
+    contextWindow: 131072,
+    maxTokens: 8192,
   },
   "ollama/deepseek-r1": {
     id: "deepseek-r1",
@@ -111,8 +143,32 @@ const OLLAMA_MODELS: Record<string, Partial<Model<Api>>> = {
     reasoning: true,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 65536,
+    contextWindow: 131072,
     maxTokens: 8192,
+  },
+  "ollama/codellama": {
+    id: "codellama",
+    name: "Code Llama (Ollama)",
+    api: "openai-completions",
+    provider: "ollama",
+    baseUrl: "http://localhost:11434/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 16384,
+    maxTokens: 4096,
+  },
+  "ollama/phi3": {
+    id: "phi3",
+    name: "Phi-3 (Ollama)",
+    api: "openai-completions",
+    provider: "ollama",
+    baseUrl: "http://localhost:11434/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 131072,
+    maxTokens: 4096,
   },
 };
 
@@ -185,10 +241,15 @@ export function resolveModel(modelId: string, options?: ModelResolutionOptions):
   }
 
   // Try pi-ai's model registry (OpenRouter, Anthropic, Google, etc.)
-  // pi-ai groups by provider, so we try known providers
-  const providers = ["openrouter", "anthropic", "google", "openai", "deepseek", "groq", "xai"];
+  // pi-ai groups by provider, so we try known providers.
+  // getModel's type signature requires specific (KnownProvider, ModelKey) pairs
+  // for full type inference, but we're resolving dynamically at runtime.
+  // The try/catch handles any invalid provider+model combinations.
+  const providers: string[] = ["openrouter", "anthropic", "google", "openai", "deepseek", "groq", "xai", "ollama"];
   for (const provider of providers) {
     try {
+      // Type assertion required: getModel's generics are too narrow for dynamic lookup.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const model = getModel(provider as any, modelId as any);
       if (model) return model as Model<Api>;
     } catch {
@@ -210,9 +271,15 @@ export function resolveModel(modelId: string, options?: ModelResolutionOptions):
 export function convertMessages(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ): Message[] {
+  // Origen uses simple string messages. pi-ai's Message union type includes
+  // UserMessage (content: string | ...[]) and AssistantMessage (content: ...[]).
+  // Our messages have role "user" (valid UserMessage) or "assistant" (simplified —
+  // real AssistantMessages have structured content, but pi-agent-core accepts
+  // simplified messages at runtime). We cast to satisfy TypeScript while
+  // maintaining runtime correctness.
   return messages.map((m) => ({
     role: m.role,
-    content: m.content as any,
+    content: m.content,
     timestamp: Date.now(),
   })) as Message[];
 }
@@ -238,8 +305,11 @@ export function buildContext(
 
 // ── Event translation ─────────────────────────────────────────────────
 
-/** Default citation extractor — [BOOK CHAPTER:VERSE] patterns. */
-function defaultCitationExtractor(text: string): Citation[] {
+/** Default citation extractor — [BOOK CHAPTER:VERSE] patterns (e.g., [GEN 1:1]).
+ *  Bible-specific pattern. Consumers should provide their own extractCitations
+ *  for non-biblical citation formats. Exported for reuse and testing.
+ */
+export function defaultCitationExtractor(text: string): Citation[] {
   const citations: Citation[] = [];
   const regex = /\[([A-Z]{3})\s+(\d+):(\d+)\]/g;
   let match;

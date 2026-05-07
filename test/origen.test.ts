@@ -4,9 +4,9 @@
  * No external dependencies — scholar-tools tests live in the scholar monorepo.
  */
 
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi } from "vitest";
 import { resolveModel } from "../src/adapter";
-import { MODELS, DEFAULT_MODEL, DEFAULT_MODEL_ID, isOllamaModel, getModelsByProvider, getModelsForUI, supportsThinking, THINKING_MODELS, type ModelId } from "../src/models";
+import { MODELS, DEFAULT_MODEL, DEFAULT_MODEL_ID, isOllamaModel, getModelsByProvider, getModelsForUI, supportsThinking, THINKING_MODELS, fetchOllamaModels, mergeOllamaModels, discoverOllamaModels, type ModelId } from "../src/models";
 import { Soul, loadSoul } from "../src/soul";
 import { checkOpenRouterAuth, checkAuth } from "../src/agent";
 
@@ -167,5 +167,176 @@ describe("Auth Check", () => {
     const result = await checkAuth(async () => undefined);
     expect(result.authenticated).toBe(false);
     expect(result.error).toBeDefined();
+  });
+});
+
+// ── Ollama Discovery ───────────────────────────────────────────────
+
+describe("Ollama Discovery", () => {
+  const mockOllamaResponse = {
+    models: [
+      {
+        name: "llama3.2:latest",
+        model: "llama3.2:latest",
+        modified_at: "2026-03-14T16:30:30.612Z",
+        size: 2019393189,
+        digest: "abc123",
+        details: {
+          parent_model: "",
+          format: "gguf",
+          family: "llama",
+          families: ["llama"],
+          parameter_size: "3.2B",
+          quantization_level: "Q4_K_M",
+        },
+      },
+      {
+        name: "deepseek-r1:latest",
+        model: "deepseek-r1:latest",
+        modified_at: "2026-03-14T12:24:55.817Z",
+        size: 4754764544,
+        digest: "def456",
+        details: {
+          parent_model: "",
+          format: "gguf",
+          family: "deepseek-r1",
+          families: ["deepseek-r1"],
+          parameter_size: "8B",
+          quantization_level: "Q4_K_M",
+        },
+      },
+      {
+        name: "gemma4:cloud",
+        model: "gemma4:cloud",
+        remote_model: "gemma4",
+        remote_host: "https://ollama.com:443",
+        modified_at: "2026-04-14T13:57:13.095Z",
+        size: 342,
+        digest: "ghi789",
+        details: {
+          parent_model: "",
+          format: "",
+          family: "gemma4",
+          families: ["gemma4"],
+          parameter_size: "",
+          quantization_level: "",
+        },
+      },
+      {
+        name: "nomic-embed-text:latest",
+        model: "nomic-embed-text:latest",
+        modified_at: "2026-02-21T03:06:35.05Z",
+        size: 274302450,
+        digest: "jkl012",
+        details: {
+          parent_model: "",
+          format: "gguf",
+          family: "nomic-bert",
+          families: ["nomic-bert"],
+          parameter_size: "137M",
+          quantization_level: "F16",
+        },
+      },
+    ],
+  };
+
+  test("fetchOllamaModels discovers local and cloud models", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockOllamaResponse),
+    }));
+
+    const models = await fetchOllamaModels("http://localhost:11434");
+
+    // Should have llama3.2, deepseek-r1, gemma4 (cloud)
+    expect(models["ollama/llama3.2"]).toBeDefined();
+    expect(models["ollama/llama3.2"]?.free).toBe(true);
+    expect(models["ollama/deepseek-r1"]).toBeDefined();
+    expect(models["ollama/gemma4"]).toBeDefined();
+    expect(models["ollama/gemma4"]?.description).toContain("Cloud");
+
+    // Embedding model should be filtered out
+    expect(models["ollama/nomic-embed-text"]).toBeUndefined();
+
+    // Cloud tags should get a full tagged entry too
+    expect(models["ollama/gemma4:cloud"]).toBeDefined();
+
+    vi.restoreAllMocks();
+  });
+
+  test("fetchOllamaModels returns empty on network error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    const models = await fetchOllamaModels("http://localhost:11434");
+    expect(Object.keys(models)).toHaveLength(0);
+
+    vi.restoreAllMocks();
+  });
+
+  test("fetchOllamaModels returns empty on non-200 response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+
+    const models = await fetchOllamaModels("http://localhost:11434");
+    expect(Object.keys(models)).toHaveLength(0);
+
+    vi.restoreAllMocks();
+  });
+
+  test("mergeOllamaModels merges discovered models into static registry", () => {
+    const staticCount = Object.keys(MODELS).length;
+
+    mergeOllamaModels({
+      "ollama/my-custom-model": {
+        name: "My Custom Model",
+        description: "Local — custom model",
+        free: true,
+      },
+    });
+
+    expect(MODELS["ollama/my-custom-model"]).toBeDefined();
+    expect(MODELS["ollama/my-custom-model"]?.name).toBe("My Custom Model");
+    expect(Object.keys(MODELS).length).toBe(staticCount + 1);
+  });
+
+  test("discoverOllamaModels fetches and merges in one call", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockOllamaResponse),
+    }));
+
+    const models = await discoverOllamaModels("http://localhost:11434");
+
+    expect(models["ollama/llama3.2"]).toBeDefined();
+    expect(models["ollama/deepseek-r1"]).toBeDefined();
+    // Static cloud models should still be present
+    expect(models["openrouter/free"]).toBeDefined();
+
+    vi.restoreAllMocks();
+  });
+
+  test("reasoning models are tagged correctly", async () => {
+    const deepseekOnly = {
+      models: [{
+        name: "deepseek-r1:latest",
+        model: "deepseek-r1:latest",
+        modified_at: "",
+        size: 0,
+        digest: "",
+        details: {
+          parent_model: "", format: "gguf", family: "deepseek-r1",
+          families: ["deepseek-r1"], parameter_size: "8B", quantization_level: "Q4_K_M",
+        },
+      }],
+    };
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(deepseekOnly),
+    }));
+
+    const models = await fetchOllamaModels("http://localhost:11434");
+    expect(models["ollama/deepseek-r1"]?.description).toContain("reasoning");
+
+    vi.restoreAllMocks();
   });
 });

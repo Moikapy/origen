@@ -17,6 +17,7 @@ import {
   createEventStream,
   resolveModel,
 } from "./adapter";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
 import type { D1Provider, Citation, UsageInfo } from "./types";
 
@@ -143,8 +144,9 @@ export async function* streamOrigen(
   // Adapt tools to AgentTool format
   const adaptedTools = adaptTools(config.tools, config.getD1);
 
-  // Convert messages
-  let piMessages = convertMessages(messages);
+  // Convert messages — Origen's simple {role, content} maps to pi-ai UserMessages.
+  // Assistant messages lack thinking/toolCall content, so we cast through the union.
+  const piMessages = convertMessages(messages) as AgentMessage[];
 
   // Inject context into last user message
   if (context && piMessages.length > 0) {
@@ -172,7 +174,7 @@ export async function* streamOrigen(
       model,
       thinkingLevel: config.thinkingLevel ?? (THINKING_MODELS.has(modelId) ? "medium" : "off"),
       tools: adaptedTools,
-      messages: piMessages as any,
+      messages: piMessages,
     },
     getApiKey: resolveApiKey,
     toolExecution: config.toolExecution ?? "parallel",
@@ -186,7 +188,7 @@ export async function* streamOrigen(
   let streamError: string | null = null;
 
   // Start prompt without awaiting — events flow through active subscription
-  agent.prompt(piMessages as any).catch((error) => {
+  agent.prompt(piMessages).catch((error) => {
     // If prompt throws without emitting agent_end, capture error
     // to yield after the stream ends
     streamError = error instanceof Error ? error.message : String(error);
