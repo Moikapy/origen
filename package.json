@@ -1,25 +1,29 @@
 {
   "name": "@moikapy/origen",
-  "version": "0.4.0",
+  "version": "0.4.1",,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./models": {
       "types": "./dist/models.d.ts",
-      "import": "./dist/models.js"
+      "import": "./dist/models.js",
+      "default": "./dist/models.js"
     },
     "./soul": {
       "types": "./dist/soul.d.ts",
-      "import": "./dist/soul.js"
+      "import": "./dist/soul.js",
+      "default": "./dist/soul.js"
     },
     "./adapter": {
       "types": "./dist/adapter.d.ts",
-      "import": "./dist/adapter.js"
+      "import": "./dist/adapter.js",
+      "default": "./dist/adapter.js"
     }
   },
   "files": [
