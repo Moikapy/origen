@@ -12,6 +12,8 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  // pi-ai and pi-agent-core are external — the consumer provides them
-  external: ["@mariozechner/pi-ai", "@mariozechner/pi-agent-core"],
+  // External deps — the consumer provides these at runtime.
+  // tsup DTS generation uses tsc which requires these in node_modules.
+  // If DTS build fails on CI, set dts: false and ship hand-written .d.ts files.
+  external: ["@mariozechner/pi-ai", "@mariozechner/pi-agent-core", "typebox"],
 });
