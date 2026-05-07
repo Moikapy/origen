@@ -10,9 +10,13 @@
     "./soul": "./src/soul.ts",
     "./adapter": "./src/adapter.ts"
   },
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "tsc --noEmit"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.73.0",
