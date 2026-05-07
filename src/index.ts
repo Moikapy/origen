@@ -56,3 +56,6 @@ export {
 
 export { resolveModel, createEventStream } from "./adapter";
 export type { ModelResolutionOptions } from "./adapter";
+
+export { loadSoul } from "./soul";
+export type { Soul } from "./soul";
