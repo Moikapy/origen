@@ -1,4 +1,4 @@
 node_modules/
 dist/
 *.lockb
-.DS_Store
+.DS_Storedist/
