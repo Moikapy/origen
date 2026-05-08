@@ -24,6 +24,16 @@
       "types": "./dist/adapter.d.ts",
       "import": "./dist/adapter.js",
       "default": "./dist/adapter.js"
+    },
+    "./wiki/local": {
+      "types": "./dist/wiki/local.d.ts",
+      "import": "./dist/wiki/local.js",
+      "default": "./dist/wiki/local.js"
+    },
+    "./wiki/cloud": {
+      "types": "./dist/wiki/cloud.d.ts",
+      "import": "./dist/wiki/cloud.js",
+      "default": "./dist/wiki/cloud.js"
     }
   },
   "files": [
