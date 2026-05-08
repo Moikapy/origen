@@ -30,10 +30,11 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup --no-dts --no-sourcemap",
+    "build:release": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build:release"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.73.0",
