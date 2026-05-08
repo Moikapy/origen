@@ -25,6 +25,7 @@ export type { WikiProvider } from './types';
 export class LocalWikiProvider implements WikiProvider {
   private cache = new Map<string, string>();
   private invertedIndex = new Map<string, Set<string>>(); // term → Set<cacheKey>
+  private pageTerms = new Map<string, Set<string>>(); // cacheKey → Set<term> (for fast removal)
 
   constructor(private rootDir: string) {}
 
@@ -51,9 +52,12 @@ export class LocalWikiProvider implements WikiProvider {
   /**
    * Add a page's tokens to the inverted index.
    * Called incrementally on every getPage/savePage — no batch build needed.
+   * Also tracks per-page terms for fast removal.
    */
   private indexPage(key: string, content: string): void {
     const tokens = new Set(this.tokenize(content));
+    // Track per-page terms for O(t) removal later
+    this.pageTerms.set(key, tokens);
     for (const token of tokens) {
       if (!this.invertedIndex.has(token)) this.invertedIndex.set(token, new Set());
       this.invertedIndex.get(token)!.add(key);
@@ -62,13 +66,19 @@ export class LocalWikiProvider implements WikiProvider {
 
   /**
    * Remove a page's tokens from the inverted index.
-   * Called before re-indexing a page that has changed.
+   * O(t) where t = terms in this page (not all terms in the index).
    */
   private unindexPage(key: string): void {
-    for (const [term, keys] of this.invertedIndex) {
-      keys.delete(key);
-      if (keys.size === 0) this.invertedIndex.delete(term);
+    const oldTerms = this.pageTerms.get(key);
+    if (!oldTerms) return;
+    for (const term of oldTerms) {
+      const keys = this.invertedIndex.get(term);
+      if (keys) {
+        keys.delete(key);
+        if (keys.size === 0) this.invertedIndex.delete(term);
+      }
     }
+    this.pageTerms.delete(key);
   }
 
   async getPage(title: string, scope: WikiScope, userId?: string): Promise<string | null> {
