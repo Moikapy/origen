@@ -71,6 +71,29 @@ SCOPES:
       },
     },
     {
+      name: 'wiki_get_page',
+      description: `Reads the full content of a specific page in the Sovereign Memory wiki. Use this after wiki_query to read the actual synthesis before compounding new knowledge onto it.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the wiki page to read' },
+          scope: {
+            type: 'string',
+            enum: ['global', 'community', 'personal'],
+            description: "The memory tier. Default: 'community'",
+          },
+        },
+        required: ['title', 'scope'],
+      },
+      execute: async ({ title, scope }: WikiToolInput) => {
+        const content = await provider.getPage(title!, (scope ?? 'community') as WikiScope, defaultUserId);
+        if (content === null) {
+          return `Page "${title}" not found in [${scope ?? 'community'}] memory.`;
+        }
+        return content;
+      },
+    },
+    {
       name: 'wiki_list_pages',
       description: 'Lists all page titles in a specific memory tier.',
       parameters: {

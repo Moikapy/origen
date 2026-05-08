@@ -226,6 +226,73 @@ describe('Sovereign Memory — Full Integration', () => {
     });
   });
 
+  describe('Read-Before-Compound — The Synthesis Loop', () => {
+    it('should allow agent to query, then read, then compound', async () => {
+      const tools = createWikiTools(provider, 'scholar');
+      const update = tools.find(t => t.name === 'wiki_update_page')!;
+      const query = tools.find(t => t.name === 'wiki_query')!;
+      const getPage = tools.find(t => t.name === 'wiki_get_page')!;
+
+      // Step 1: Agent compounds initial knowledge
+      await update.execute({
+        title: 'Grace Study',
+        content: 'Grace is unmerited favor from God.',
+        scope: 'community',
+      });
+
+      // Step 2: Agent searches for existing synthesis
+      const searchResult = await query.execute({ query: 'grace', scopes: ['community'] });
+      expect(searchResult).toContain('Grace Study');
+
+      // Step 3: Agent reads the existing page BEFORE compounding
+      const existingContent = await getPage.execute({ title: 'Grace Study', scope: 'community' });
+      expect(existingContent).toBe('Grace is unmerited favor from God.');
+
+      // Step 4: Agent compounds new insight onto the existing synthesis
+      await update.execute({
+        title: 'Grace Study',
+        content: `${existingContent} Chapter 8 adds: we are more than conquerors through Him who loved us.`,
+        scope: 'community',
+      });
+
+      // Step 5: Verify the compounded knowledge
+      const compounded = await getPage.execute({ title: 'Grace Study', scope: 'community' });
+      expect(compounded).toContain('unmerited favor');
+      expect(compounded).toContain('more than conquerors');
+    });
+
+    it('should return not-found for non-existent pages', async () => {
+      const tools = createWikiTools(provider, 'scholar');
+      const getPage = tools.find(t => t.name === 'wiki_get_page')!;
+
+      const result = await getPage.execute({ title: 'Nonexistent Page', scope: 'community' });
+      expect(result).toContain('not found');
+    });
+
+    it('should not allow reading personal pages across users', async () => {
+      const aliceTools = createWikiTools(provider, 'alice');
+      const bobTools = createWikiTools(provider, 'bob');
+
+      // Alice saves a personal page
+      const aliceUpdate = aliceTools.find(t => t.name === 'wiki_update_page')!;
+      await aliceUpdate.execute({
+        title: 'My Journal',
+        content: 'Private thoughts about Romans 8.',
+        scope: 'personal',
+      });
+
+      // Bob tries to read Alice's personal page
+      const bobGetPage = bobTools.find(t => t.name === 'wiki_get_page')!;
+      const bobResult = await bobGetPage.execute({ title: 'My Journal', scope: 'personal' });
+      expect(bobResult).toContain('not found');
+
+      // Alice CAN read her own page
+      const aliceGetPage = aliceTools.find(t => t.name === 'wiki_get_page')!;
+      const aliceResult = await aliceGetPage.execute({ title: 'My Journal', scope: 'personal' });
+      expect(aliceResult).toBe('Private thoughts about Romans 8.');
+    });
+  });
+
   describe('Listing and Scope Verification', () => {
     it('should list pages per scope without cross-contamination', async () => {
       const tools = createWikiTools(provider, 'member');
