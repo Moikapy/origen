@@ -337,11 +337,17 @@ export class Soul {
 
     // Values
     const values = this.config.values;
-    if (values?.priorities?.length) {
-      parts.push(`\n## Priorities (in order)\n${values.priorities.map((p, i) => `${i + 1}. ${p}`).join("\n")}`);
+    if (values?.priorities) {
+      const priorities = Array.isArray(values.priorities) ? values.priorities : [String(values.priorities)];
+      if (priorities.length > 0) {
+        parts.push(`\n## Priorities (in order)\n${priorities.map((p, i) => `${i + 1}. ${p}`).join("\n")}`);
+      }
     }
-    if (values?.taboo?.length) {
-      parts.push(`\n## Forbidden patterns\n${values.taboo.map((t) => `- ${t}`).join("\n")}`);
+    if (values?.taboo) {
+      const taboos = Array.isArray(values.taboo) ? values.taboo : [String(values.taboo)];
+      if (taboos.length > 0) {
+        parts.push(`\n## Forbidden patterns\n${taboos.map((t) => `- ${t}`).join("\n")}`);
+      }
     }
 
     // Voice
@@ -365,8 +371,14 @@ export class Soul {
         voiceParts.push(`Jargon: ${level} (${voice.jargon}/100).`);
       }
       if (voice.formatting) voiceParts.push(`Formatting: ${voice.formatting}.`);
-      if (voice.banned_phrases?.length) voiceParts.push(`Never say: ${voice.banned_phrases.map((p) => `"${p}"`).join(", ")}.`);
-      if (voice.preferred_phrases?.length) voiceParts.push(`Prefer: ${voice.preferred_phrases.map((p) => `"${p}"`).join(", ")}.`);
+      if (voice.banned_phrases) {
+        const banned = Array.isArray(voice.banned_phrases) ? voice.banned_phrases : [String(voice.banned_phrases)];
+        if (banned.length > 0) voiceParts.push(`Never say: ${banned.map((p) => `"${p}"`).join(", ")}.`);
+      }
+      if (voice.preferred_phrases) {
+        const preferred = Array.isArray(voice.preferred_phrases) ? voice.preferred_phrases : [String(voice.preferred_phrases)];
+        if (preferred.length > 0) voiceParts.push(`Prefer: ${preferred.map((p) => `"${p}"`).join(", ")}.`);
+      }
       if (voice.emoji_policy && voice.emoji_policy !== "rare") voiceParts.push(`Emoji usage: ${voice.emoji_policy}.`);
       parts.push(voiceParts.join(" "));
     }

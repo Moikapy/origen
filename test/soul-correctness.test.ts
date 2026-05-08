@@ -131,6 +131,42 @@ Body text.`);
       expect(prompt).toContain('Never say: "As an AI", "I\'d be happy to help"');
       expect(prompt).toContain('Prefer: "Let\'s explore"');
     });
+
+    it('should handle banned_phrases as single string', () => {
+      const soul = loadSoul(`---
+id: test
+name: Test
+voice:
+  banned_phrases: "As an AI"
+---
+Body text.`);
+      const prompt = soul.buildPrompt();
+      expect(prompt).toContain('Never say: "As an AI"');
+    });
+
+    it('should handle priorities as string instead of array', () => {
+      const soul = loadSoul(`---
+id: test
+name: Test
+values:
+  priorities: Accuracy
+---
+Body text.`);
+      const prompt = soul.buildPrompt();
+      expect(prompt).toContain('1. Accuracy');
+    });
+
+    it('should handle taboo as string instead of array', () => {
+      const soul = loadSoul(`---
+id: test
+name: Test
+values:
+  taboo: Fabricating sources
+---
+Body text.`);
+      const prompt = soul.buildPrompt();
+      expect(prompt).toContain('- Fabricating sources');
+    });
   });
 
   describe('Profile override merging', () => {
