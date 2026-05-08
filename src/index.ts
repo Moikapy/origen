@@ -26,7 +26,10 @@ export type {
   Citation,
   UsageInfo,
   ModelConfig as OrigenModelConfig,
+  WikiProvider,
+  WikiScope,
 } from "./types";
+
 
 export {
   MODELS,
@@ -62,3 +65,6 @@ export type { ModelResolutionOptions } from "./adapter";
 
 export { loadSoul } from "./soul";
 export type { Soul } from "./soul";
+
+export { LocalWikiProvider, CloudWikiProvider } from "./wiki";
+export { createWikiTools } from "./wiki-tools";

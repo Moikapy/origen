@@ -2,6 +2,17 @@
  * Origen types — no runtime deps, safe for client + server.
  */
 
+/** Memory visibility scope for the LLM-Wiki */
+export type WikiScope = 'global' | 'community' | 'personal';
+
+/** Wiki provider interface for compounding memory */
+export interface WikiProvider {
+  getPage(title: string, scope: WikiScope, userId?: string): Promise<string | null>;
+  savePage(title: string, content: string, scope: WikiScope, userId?: string): Promise<void>;
+  search(query: string, scopes: WikiScope[], userId?: string): Promise<string[]>;
+  listAllPages(scope: WikiScope, userId?: string): Promise<string[]>;
+}
+
 /** D1-compatible database interface for tool execution */
 export interface D1Like {
   prepare(sql: string): {

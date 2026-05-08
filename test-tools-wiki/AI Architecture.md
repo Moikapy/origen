@@ -1,0 +1,1 @@
+This system uses a hybrid wiki.

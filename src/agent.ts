@@ -17,6 +17,8 @@ import {
   createEventStream,
   resolveModel,
 } from "./adapter";
+import { createWikiTools } from "./wiki-tools";
+import { LocalWikiProvider, CloudWikiProvider, type WikiProvider } from "./wiki";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
 import type { D1Provider, Citation, UsageInfo } from "./types";
@@ -53,12 +55,18 @@ export interface AgentConfig {
   getApiKey?: (provider: string) => Promise<string | undefined>;
   /** Ollama base URL override (default: http://localhost:11434/v1) */
   ollamaBaseUrl?: string;
-  /** Tool execution mode: "parallel" (default) or "sequential" */
+  /** Tool execution mode: "parallel" (default) l a "sequential" */
   toolExecution?: "sequential" | "parallel";
   /** Abort signal for cancellation */
   signal?: AbortSignal;
   /** Reasoning/thinking level for models that support it */
   thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high";
+  wiki?: {
+    type: 'local' | 'cloud';
+    rootDir?: string; // Only used for 'local'
+    userId?: string;  // Required for personal scope
+  };
+
 }
 
 // ── Auth check ────────────────────────────────────────
@@ -142,7 +150,27 @@ export async function* streamOrigen(
   const model = resolveModel(modelId, { ollamaBaseUrl: config.ollamaBaseUrl });
 
   // Adapt tools to AgentTool format
-  const adaptedTools = adaptTools(config.tools, config.getD1);
+  const baseTools = adaptTools(config.tools, config.getD1);
+  let finalTools = [...baseTools];
+
+  if (config.wiki) {
+    const provider = config.wiki.type === 'local' 
+      ? new LocalWikiProvider(config.wiki.rootDir ?? './.origen-wiki')
+      : new CloudWikiProvider(config.getD1);
+    
+    const wikiTools = createWikiTools(provider, config.wiki.userId);
+    
+    // Convert purely internal wiki tools to OrigenTool format for adaptation
+    const adaptedWikiTools = wikiTools.map(wt => ({
+      name: wt.name,
+      description: wt.description,
+      parameters: wt.parameters,
+      execute: async (args: any) => await wt.execute(args),
+    }));
+    
+    finalTools = [...baseTools, ...adaptTools(adaptedWikiTools, config.getD1)];
+  }
+
 
   // Convert messages — Origen's simple {role, content} maps to pi-ai UserMessages.
   // Assistant messages lack thinking/toolCall content, so we cast through the union.
@@ -173,7 +201,7 @@ export async function* streamOrigen(
       systemPrompt,
       model,
       thinkingLevel: config.thinkingLevel ?? (THINKING_MODELS.has(modelId) ? "medium" : "off"),
-      tools: adaptedTools,
+      tools: finalTools,
       messages: piMessages,
     },
     getApiKey: resolveApiKey,
