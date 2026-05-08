@@ -66,5 +66,5 @@ export type { ModelResolutionOptions } from "./adapter";
 export { loadSoul } from "./soul";
 export type { Soul } from "./soul";
 
-export { LocalWikiProvider, CloudWikiProvider } from "./wiki";
+export { LocalWikiProvider, CloudWikiProvider, CLOUD_WIKI_MIGRATION } from "./wiki";
 export { createWikiTools } from "./wiki-tools";
