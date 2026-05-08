@@ -29,6 +29,34 @@ function createMockD1(withFts5 = false) {
     prepare: (_sql: string) => ({
       bind: (...params: unknown[]) => ({
         run: async () => {
+          // DELETE FROM wiki_pages
+          if (_sql.includes('DELETE')) {
+            const isPersonal = _sql.includes('user_id = ?');
+            const isNullUserId = _sql.includes('user_id IS NULL');
+            
+            let deleted = 0;
+            if (isPersonal) {
+              // DELETE ... WHERE title = ? AND scope = ? AND user_id = ?
+              const [title, scope, userId] = params as [string, string, string];
+              for (const [k, row] of store.entries()) {
+                if (row.title === title && row.scope === scope && row.user_id === userId) {
+                  store.delete(k);
+                  deleted++;
+                }
+              }
+            } else if (isNullUserId) {
+              // DELETE ... WHERE title = ? AND scope = ? AND user_id IS NULL
+              const [title, scope] = params as [string, string];
+              for (const [k, row] of store.entries()) {
+                if (row.title === title && row.scope === scope && row.user_id === null) {
+                  store.delete(k);
+                  deleted++;
+                }
+              }
+            }
+            return { meta: { changes: deleted } };
+          }
+          
           // INSERT OR REPLACE into wiki_pages
           // Non-personal: params = [title, content, scope] (SQL has NULL for user_id)
           // Personal: params = [title, content, scope, userId]
@@ -270,6 +298,87 @@ describe('Sovereign Memory — CloudWikiProvider Integration', () => {
       expect(globalContent).toBe('Universal truth about grace.');
       expect(communityContent).toBe('Community understanding of grace.');
       expect(personalContent).toBe('My personal experience of grace.');
+    });
+  });
+
+  describe('Delete — Pruning Outdated Knowledge via D1', () => {
+    it('should delete a community page and confirm it is gone', async () => {
+      const d1 = createMockD1();
+      const provider = new CloudWikiProvider(() => Promise.resolve(d1));
+
+      await provider.savePage('Outdated Doctrine', 'This is no longer accurate.', 'community');
+      
+      // Verify it exists
+      const content = await provider.getPage('Outdated Doctrine', 'community');
+      expect(content).toBe('This is no longer accurate.');
+      
+      // Delete it
+      const deleted = await provider.deletePage('Outdated Doctrine', 'community');
+      expect(deleted).toBe(true);
+      
+      // Verify it's gone
+      const gone = await provider.getPage('Outdated Doctrine', 'community');
+      expect(gone).toBeNull();
+    });
+
+    it('should remove deleted pages from search results', async () => {
+      const d1 = createMockD1(true); // with FTS5
+      const provider = new CloudWikiProvider(() => Promise.resolve(d1));
+
+      await provider.savePage('Obsolete Fact', 'The earth is flat.', 'community');
+      
+      // Verify it shows in search
+      let results = await provider.search('flat', ['community']);
+      expect(results).toContain('[community] Obsolete Fact');
+      
+      // Delete it
+      await provider.deletePage('Obsolete Fact', 'community');
+      
+      // Verify it no longer appears in search
+      // Note: In real D1, FTS5 triggers would handle this.
+      // In our mock, the store is modified directly.
+      results = await provider.search('flat', ['community']);
+      expect(results).not.toContain('Obsolete Fact');
+    });
+
+    it('should return false when deleting a non-existent page', async () => {
+      const d1 = createMockD1();
+      const provider = new CloudWikiProvider(() => Promise.resolve(d1));
+
+      const deleted = await provider.deletePage('DoesNotExist', 'community');
+      expect(deleted).toBe(false);
+    });
+
+    it('should not leak deleted pages across scopes', async () => {
+      const d1 = createMockD1();
+      const provider = new CloudWikiProvider(() => Promise.resolve(d1));
+
+      await provider.savePage('Grace', 'Universal truth about grace.', 'global');
+      await provider.savePage('Grace', 'Community understanding of grace.', 'community');
+      await provider.savePage('Grace', 'My personal experience of grace.', 'personal', 'alice');
+
+      // Delete community version only
+      const deleted = await provider.deletePage('Grace', 'community');
+      expect(deleted).toBe(true);
+
+      // Global version should still exist
+      const globalContent = await provider.getPage('Grace', 'global');
+      expect(globalContent).toBe('Universal truth about grace.');
+
+      // Community version should be gone
+      const communityContent = await provider.getPage('Grace', 'community');
+      expect(communityContent).toBeNull();
+
+      // Personal version should still exist
+      const personalContent = await provider.getPage('Grace', 'personal', 'alice');
+      expect(personalContent).toBe('My personal experience of grace.');
+    });
+
+    it('should require userId for personal scope deletion', async () => {
+      const d1 = createMockD1();
+      const provider = new CloudWikiProvider(() => Promise.resolve(d1));
+
+      await expect(provider.deletePage('Secret', 'personal')).rejects.toThrow('userId is required');
     });
   });
 });
