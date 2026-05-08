@@ -36,20 +36,14 @@ export interface ReadingContext {
   selectedVerses?: number[];
 }
 
-/** Agent message with optional metadata */
+/** Simplified message format for streamOrigen/callOrigen inputs.
+ *  The full AgentMessage type from pi-agent-core is re-exported from agent.ts.
+ */
 export interface AgentMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
-
-/** SSE events streamed from the agent to the UI */
-export type StreamEvent =
-  | { type: "thinking"; content: string }
-  | { type: "tool_call"; name: string; args: Record<string, unknown> }
-  | { type: "tool_result"; name: string; result: string }
-  | { type: "text"; content: string }
-  | { type: "done"; message: string; citations: Citation[]; usage?: UsageInfo }
-  | { type: "error"; message: string };
+;
 
 export interface Citation {
   book: string;

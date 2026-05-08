@@ -28,6 +28,7 @@ export type {
   ModelConfig as OrigenModelConfig,
   WikiProvider,
   WikiScope,
+  AgentMessage,
 } from "./types";
 
 
