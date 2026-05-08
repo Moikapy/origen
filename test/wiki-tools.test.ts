@@ -90,4 +90,30 @@ describe('Wiki Tools Execution — Scoped', () => {
     const notInCommunity = await provider.getPage('Private Note', 'community');
     expect(notInCommunity).toBeNull();
   });
+
+  it('should delete a page and remove it from search', async () => {
+    const tools = createWikiTools(provider, 'user-del');
+    const updateTool = tools.find(t => t.name === 'wiki_update_page')!;
+    const deleteTool = tools.find(t => t.name === 'wiki_delete_page')!;
+    const queryTool = tools.find(t => t.name === 'wiki_query')!;
+
+    // Create a page
+    await updateTool.execute({
+      title: 'Outdated Info',
+      content: 'This knowledge is no longer accurate.',
+      scope: 'community',
+    });
+
+    // Verify it's searchable
+    let result = await queryTool.execute({ query: 'outdated', scopes: ['community'] });
+    expect(result).toContain('Outdated Info');
+
+    // Delete it
+    const deleteResult = await deleteTool.execute({ title: 'Outdated Info', scope: 'community' });
+    expect(deleteResult).toContain('Successfully deleted');
+
+    // Verify it's gone from search
+    result = await queryTool.execute({ query: 'outdated', scopes: ['community'] });
+    expect(result).toContain('No matching');
+  });
 });

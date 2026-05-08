@@ -9,6 +9,7 @@ export type WikiScope = 'global' | 'community' | 'personal';
 export interface WikiProvider {
   getPage(title: string, scope: WikiScope, userId?: string): Promise<string | null>;
   savePage(title: string, content: string, scope: WikiScope, userId?: string): Promise<void>;
+  deletePage(title: string, scope: WikiScope, userId?: string): Promise<boolean>;
   search(query: string, scopes: WikiScope[], userId?: string): Promise<string[]>;
   listAllPages(scope: WikiScope, userId?: string): Promise<string[]>;
 }

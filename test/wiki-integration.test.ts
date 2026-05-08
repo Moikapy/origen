@@ -293,6 +293,71 @@ describe('Sovereign Memory — Full Integration', () => {
     });
   });
 
+  describe('Delete — Pruning Outdated Knowledge', () => {
+    it('should delete a page and confirm it\'s gone', async () => {
+      const provider = new LocalWikiProvider('./test-delete-wiki');
+      await provider.savePage('Outdated', 'This is no longer accurate.', 'community');
+      
+      // Verify it exists
+      const content = await provider.getPage('Outdated', 'community');
+      expect(content).toBe('This is no longer accurate.');
+      
+      // Delete it
+      const deleted = await provider.deletePage('Outdated', 'community');
+      expect(deleted).toBe(true);
+      
+      // Verify it's gone
+      const gone = await provider.getPage('Outdated', 'community');
+      expect(gone).toBeNull();
+    });
+
+    it('should remove page from search index after deletion', async () => {
+      const provider = new LocalWikiProvider('./test-delete-index-wiki');
+      await provider.savePage('Obsolete Fact', 'The earth is flat.', 'community');
+      
+      // Verify it shows in search
+      let results = await provider.search('flat', ['community']);
+      expect(results).toContain('[community] Obsolete Fact');
+      
+      // Delete it
+      await provider.deletePage('Obsolete Fact', 'community');
+      
+      // Verify it no longer shows in search
+      results = await provider.search('flat', ['community']);
+      expect(results).not.toContain('Obsolete Fact');
+    });
+
+    it('should return false when deleting a non-existent page', async () => {
+      const provider = new LocalWikiProvider('./test-delete-nonexist-wiki');
+      const deleted = await provider.deletePage('DoesNotExist', 'community');
+      expect(deleted).toBe(false);
+    });
+
+    it('should not leak deleted pages across scopes', async () => {
+      const provider = new LocalWikiProvider('./test-delete-scope-wiki');
+      await provider.savePage('Same Title', 'Global truth.', 'global');
+      await provider.savePage('Same Title', 'Community note.', 'community');
+      
+      // Delete community version
+      await provider.deletePage('Same Title', 'community');
+      
+      // Global version should still exist
+      const globalContent = await provider.getPage('Same Title', 'global');
+      expect(globalContent).toBe('Global truth.');
+      
+      // Community version should be gone
+      const communityContent = await provider.getPage('Same Title', 'community');
+      expect(communityContent).toBeNull();
+    });
+
+    afterEach(async () => {
+      await rm('./test-delete-wiki', { recursive: true, force: true });
+      await rm('./test-delete-index-wiki', { recursive: true, force: true });
+      await rm('./test-delete-nonexist-wiki', { recursive: true, force: true });
+      await rm('./test-delete-scope-wiki', { recursive: true, force: true });
+    });
+  });
+
   describe('Listing and Scope Verification', () => {
     it('should list pages per scope without cross-contamination', async () => {
       const tools = createWikiTools(provider, 'member');

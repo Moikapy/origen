@@ -55,7 +55,7 @@ export interface AgentConfig {
   getApiKey?: (provider: string) => Promise<string | undefined>;
   /** Ollama base URL override (default: http://localhost:11434/v1) */
   ollamaBaseUrl?: string;
-  /** Tool execution mode: "parallel" (default) l a "sequential" */
+  /** Tool execution mode: "parallel" (default) or "sequential" */
   toolExecution?: "sequential" | "parallel";
   /** Abort signal for cancellation */
   signal?: AbortSignal;
@@ -153,6 +153,11 @@ export async function* streamOrigen(
   const baseTools = adaptTools(config.tools, config.getD1);
   let finalTools = [...baseTools];
 
+  // ── Sovereign Memory Integration ────────────────────────────────────
+  // When wiki is enabled, inject wiki tools and augment the system prompt
+  // so the LLM knows how to use its memory.
+  let finalSystemPrompt = systemPrompt;
+
   if (config.wiki) {
     const provider = config.wiki.type === 'local' 
       ? new LocalWikiProvider(config.wiki.rootDir ?? './.origen-wiki')
@@ -169,6 +174,9 @@ export async function* streamOrigen(
     }));
     
     finalTools = [...baseTools, ...adaptTools(adaptedWikiTools, config.getD1)];
+
+    // Augment system prompt with wiki context instructions
+    finalSystemPrompt = `${systemPrompt}\n\nYou have access to a Sovereign Memory wiki with three tiers:\n- **global**: The Canon \u2014 core truths and verified knowledge. Use sparingly.\n- **community**: The Living Forum \u2014 aggregated insights, common patterns, Q\u0026A.\n- **personal**: The Private Sanctuary \u2014 user-specific preferences, history, and notes.\n\nWhen you learn something new, compound it into the wiki using wiki_update_page. When you need to recall knowledge, use wiki_query first, then wiki_get_page to read the full synthesis. Always read before you write to avoid duplicating knowledge.`;
   }
 
 
@@ -198,7 +206,7 @@ export async function* streamOrigen(
   // Create Agent
   const agent = new Agent({
     initialState: {
-      systemPrompt,
+      systemPrompt: finalSystemPrompt,
       model,
       thinkingLevel: config.thinkingLevel ?? (THINKING_MODELS.has(modelId) ? "medium" : "off"),
       tools: finalTools,

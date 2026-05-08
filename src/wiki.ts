@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WikiProvider, WikiScope } from './types';
 
@@ -119,6 +119,23 @@ export class LocalWikiProvider implements WikiProvider {
     }
     this.cache.set(key, content);
     this.indexPage(key, content);
+  }
+
+  async deletePage(title: string, scope: WikiScope, userId?: string): Promise<boolean> {
+    const key = this.cacheKey(title, scope, userId);
+    
+    // Remove from cache and index
+    this.unindexPage(key);
+    this.cache.delete(key);
+    
+    // Delete from filesystem
+    try {
+      const filePath = this.getPath(title, scope, userId);
+      await unlink(filePath);
+      return true;
+    } catch {
+      return false; // File didn't exist
+    }
   }
 
   async search(query: string, scopes: WikiScope[], userId?: string): Promise<string[]> {
@@ -262,6 +279,21 @@ export class CloudWikiProvider implements WikiProvider {
     await db.prepare(
       'INSERT OR REPLACE INTO wiki_pages (title, content, scope, user_id) VALUES (?, ?, ?, NULL)'
     ).bind(title, content, scope).run();
+  }
+
+  async deletePage(title: string, scope: WikiScope, userId?: string): Promise<boolean> {
+    const db = await this.d1Provider();
+    if (scope === 'personal') {
+      if (!userId) throw new Error('userId is required for personal scope');
+      const result = await db.prepare(
+        'DELETE FROM wiki_pages WHERE title = ? AND scope = ? AND user_id = ?'
+      ).bind(title, scope, userId).run();
+      return result.meta?.changes > 0;
+    }
+    const result = await db.prepare(
+      'DELETE FROM wiki_pages WHERE title = ? AND scope = ? AND user_id IS NULL'
+    ).bind(title, scope).run();
+    return result.meta?.changes > 0;
   }
 
   async search(query: string, scopes: WikiScope[], userId?: string): Promise<string[]> {

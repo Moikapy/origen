@@ -94,6 +94,32 @@ SCOPES:
       },
     },
     {
+      name: 'wiki_delete_page',
+      description: `Deletes a page from the Sovereign Memory wiki. Use this to remove outdated or incorrect knowledge. Use with caution — deletion is permanent.
+SCOPES:
+- 'global': Use extreme caution — this is the Canon. Only delete if something is factually wrong.
+- 'community': Delete to remove outdated or superseded insights.
+- 'personal': Delete to remove private notes the user no longer needs.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the wiki page to delete' },
+          scope: {
+            type: 'string',
+            enum: ['global', 'community', 'personal'],
+            description: "The memory tier. Default: 'community'",
+          },
+        },
+        required: ['title', 'scope'],
+      },
+      execute: async ({ title, scope }: WikiToolInput) => {
+        const deleted = await provider.deletePage(title!, (scope ?? 'community') as WikiScope, defaultUserId);
+        return deleted
+          ? `Successfully deleted [${scope ?? 'community'}] page: ${title}`
+          : `Page "${title}" not found in [${scope ?? 'community'}] memory.`;
+      },
+    },
+    {
       name: 'wiki_list_pages',
       description: 'Lists all page titles in a specific memory tier.',
       parameters: {

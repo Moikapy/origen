@@ -41,7 +41,7 @@ describe('Sovereign Memory — Agent Pipeline Integration', () => {
     const agentTools = adaptTools(origenWikiTools, mockD1);
 
     // All tools should be adapted successfully
-    expect(agentTools.length).toBe(4); // update_page, get_page, query, list_pages
+    expect(agentTools.length).toBe(5); // update_page, get_page, query, list_pages, delete_page
 
     // Each should have the expected AgentTool properties
     for (const tool of agentTools) {
@@ -57,6 +57,7 @@ describe('Sovereign Memory — Agent Pipeline Integration', () => {
     expect(names).toContain('wiki_get_page');
     expect(names).toContain('wiki_query');
     expect(names).toContain('wiki_list_pages');
+    expect(names).toContain('wiki_delete_page');
   });
 
   it('should execute wiki tools through the adapted AgentTool pipeline', async () => {
