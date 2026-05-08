@@ -186,17 +186,19 @@ const REASONING_FAMILIES = new Set([
   "glm-5.1", "gemma4",
 ]);
 
-/** Derive a human-readable description from Ollama model details. */
+/** Derive a human-readable description from Ollama model details.
+ *  Handles null details (some Ollama versions return details: null).
+ */
 function describeOllamaModel(
   name: string,
-  details: OllamaModelResponse["models"][number]["details"],
+  details: OllamaModelResponse["models"][number]["details"] | null,
   isCloud: boolean,
 ): string {
   const location = isCloud ? "Cloud" : "Local";
-  const family = details.family || name.split(":")[0].split("-")[0];
-  const params = details.parameter_size;
-  const quant = details.quantization_level;
-  const isReasoning = details.families?.some((f) => REASONING_FAMILIES.has(f)) ?? REASONING_FAMILIES.has(family);
+  const family = details?.family || name.split(":")[0].split("-")[0];
+  const params = details?.parameter_size;
+  const quant = details?.quantization_level;
+  const isReasoning = details?.families?.some((f) => REASONING_FAMILIES.has(f)) ?? REASONING_FAMILIES.has(family);
 
   const parts: string[] = [location, "—"];
 
@@ -241,8 +243,19 @@ export async function fetchOllamaModels(
     return {};
   }
 
-  const data: OllamaModelResponse = await response.json();
+  let data: OllamaModelResponse;
+  try {
+    data = await response.json();
+  } catch {
+    // Invalid JSON — server returned malformed response (e.g., HTML error page)
+    return {};
+  }
   const discovered: Record<string, ModelConfig> = {};
+
+  // Guard against missing or non-array models field
+  if (!Array.isArray(data?.models)) {
+    return discovered;
+  }
 
   for (const model of data.models) {
     // Strip tag suffix for a cleaner ID (e.g., "llama3.2:latest" → "llama3.2")
