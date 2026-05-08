@@ -287,11 +287,26 @@ export class Soul {
       const role = identity.role ?? this.config.name;
       const archetype = identity.archetype;
       parts.push(`You are ${this.config.name}${archetype ? `, a ${archetype}` : ""}${role ? `. Role: ${role}` : ""}.`);
-      if (identity.domain_focus?.length) {
-        parts.push(`Domain expertise: ${identity.domain_focus.join(", ")}.`);
+      const domainFocus = identity.domain_focus;
+      if (domainFocus) {
+        // Handle string (single domain), comma-separated string, or array
+        const domains: string[] = Array.isArray(domainFocus)
+          ? domainFocus as string[]
+          : typeof domainFocus === 'string'
+            ? (domainFocus as string).includes(',')
+              ? (domainFocus as string).split(',').map((s: string) => s.trim())
+              : [(domainFocus as string)]
+            : [String(domainFocus)];
+        if (domains.length > 0 && domains.some((d: string) => d)) {
+          parts.push(`Domain expertise: ${domains.join(", ")}.`);
+        }
       }
-      if (identity.non_goals?.length) {
-        parts.push(`Non-goals: ${identity.non_goals.join(", ")}.`);
+      const nonGoals = identity.non_goals;
+      if (nonGoals) {
+        const goals = Array.isArray(nonGoals) ? nonGoals : [String(nonGoals)];
+        if (goals.length > 0) {
+          parts.push(`Non-goals: ${goals.join(", ")}.`);
+        }
       }
     } else {
       parts.push(`You are ${this.config.name}.`);
