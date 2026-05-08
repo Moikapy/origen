@@ -53,9 +53,15 @@ export class LocalWikiProvider implements WikiProvider {
    * Add a page's tokens to the inverted index.
    * Called incrementally on every getPage/savePage — no batch build needed.
    * Also tracks per-page terms for fast removal.
+   * Indexes BOTH title and content so pages can be found by title.
    */
   private indexPage(key: string, content: string): void {
-    const tokens = new Set(this.tokenize(content));
+    // Parse the cache key to extract the title for indexing
+    const [scope, userIdPart, ...titleParts] = key.split(':');
+    const title = titleParts.join(':');
+    // Index both title and content — title is the primary identifier
+    const searchableText = `${title} ${content}`;
+    const tokens = new Set(this.tokenize(searchableText));
     // Track per-page terms for O(t) removal later
     this.pageTerms.set(key, tokens);
     for (const token of tokens) {
