@@ -51,11 +51,15 @@ import {
   // From soul.ts
   loadSoul,
   type Soul,
+  type SoulVoice,
+  type SoulInteraction,
+  type SoulSafety,
   // From wiki
   LocalWikiProvider,
   CloudWikiProvider,
   CLOUD_WIKI_MIGRATION,
   createWikiTools,
+  type WikiToolInput,
 } from "../src/index";
 
 // ── Internal imports for divergence checks ──
@@ -274,6 +278,21 @@ describe("Type Export Audit", () => {
     expect(typeof checkOpenRouterAuth).toBe("function");
   });
 
+  it("exports Soul sub-types (SoulVoice, SoulInteraction, SoulSafety)", () => {
+    const _voice: SoulVoice = { formality: 0.5, warmth: 0.7, verbosity: 0.5, jargon: 0.3, formatting: "markdown" };
+    const _interaction: SoulInteraction = { clarifying_questions: "when_ambiguous", uncertainty: "explicit", disagreement: "soft", confirmations: "implicit" };
+    const _safety: SoulSafety = { refusal_style: "brief", privacy: "normal", speculation: "mark" };
+    expect(_voice.formality).toBe(0.5);
+    expect(_interaction.disagreement).toBe("soft");
+    expect(_safety.refusal_style).toBe("brief");
+  });
+
+  it("exports WikiToolInput type", () => {
+    const _input: WikiToolInput = { title: "test", content: "content", scope: "global" };
+    expect(_input.title).toBe("test");
+    expect(_input.scope).toBe("global");
+  });
+
   // ── 7. Dist build matches source exports ──
   it("dist/index.js re-exports all named exports from src/index.ts", async () => {
     // Read source exports
@@ -314,10 +333,11 @@ describe("Type Export Audit", () => {
       // Type exports won't show up in runtime object
       const typeOnlyExports = new Set([
         "D1Like", "D1Provider", "ReadingContext", "Citation", "UsageInfo",
-        "WikiProvider", "WikiScope", "AgentMessage", "OrigenModelConfig",
-        "ModelId", "ModelConfig", "UIModelConfig",
-        "AgentConfig", "OrigenTool", "AuthCheckResult", "AgentResponse", "StreamEvent",
-        "ModelResolutionOptions", "Soul",
+        "OrigenModelConfig", "WikiProvider", "WikiScope", "SimpleMessage",
+        "AgentMessage", "ModelId", "ModelConfig", "UIModelConfig",
+        "AgentConfig", "OrigenTool", "AuthCheckResult", "AgentResponse",
+        "StreamEvent", "ModelResolutionOptions", "Soul",
+        "SoulVoice", "SoulInteraction", "SoulSafety", "WikiToolInput",
       ]);
       if (!typeOnlyExports.has(name) && !(name in dist)) {
         missingFromDist.push(name);
