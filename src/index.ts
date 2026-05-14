@@ -66,7 +66,7 @@ export { resolveModel, createEventStream, defaultCitationExtractor } from "./ada
 export type { ModelResolutionOptions } from "./adapter";
 
 export { loadSoul } from "./soul";
-export type { Soul, SoulVoice, SoulInteraction, SoulSafety } from "./soul";
+export type { Soul, SoulConfig, SoulVoice, SoulInteraction, SoulSafety, SoulCognition, SoulActions } from "./soul";
 
 export { LocalWikiProvider, CloudWikiProvider, CLOUD_WIKI_MIGRATION } from "./wiki";
 export { createWikiTools } from "./wiki-tools";

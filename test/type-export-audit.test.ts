@@ -54,6 +54,9 @@ import {
   type SoulVoice,
   type SoulInteraction,
   type SoulSafety,
+  type SoulCognition,
+  type SoulActions,
+  type SoulConfig,
   // From wiki
   LocalWikiProvider,
   CloudWikiProvider,
@@ -337,7 +340,8 @@ describe("Type Export Audit", () => {
         "AgentMessage", "ModelId", "ModelConfig", "UIModelConfig",
         "AgentConfig", "OrigenTool", "AuthCheckResult", "AgentResponse",
         "StreamEvent", "ModelResolutionOptions", "Soul",
-        "SoulVoice", "SoulInteraction", "SoulSafety", "WikiToolInput",
+        "SoulVoice", "SoulInteraction", "SoulSafety", "SoulCognition",
+        "SoulActions", "SoulConfig", "WikiToolInput",
       ]);
       if (!typeOnlyExports.has(name) && !(name in dist)) {
         missingFromDist.push(name);
