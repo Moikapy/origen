@@ -1,1 +1,0 @@
-Updated synthesis with new findings.
