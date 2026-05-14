@@ -178,7 +178,7 @@ const DEFAULT_MODEL: Model<Api> = {
   api: "openai-completions",
   provider: "openrouter",
   baseUrl: "https://openrouter.ai/api/v1",
-  reasoning: false,
+  reasoning: true, // openrouter/free may route to reasoning-required models (DeepSeek R1)
   input: ["text"],
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   contextWindow: 128000,

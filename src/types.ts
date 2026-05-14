@@ -37,12 +37,16 @@ export interface ReadingContext {
 }
 
 /** Simplified message format for streamOrigen/callOrigen inputs.
+ *  Use this for simple text-only conversations.
  *  The full AgentMessage type from pi-agent-core is re-exported from agent.ts.
  */
-export interface AgentMessage {
+export interface SimpleMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
+
+/** @deprecated Use SimpleMessage for input, AgentMessage from agent.ts for the full type. */
+export type AgentMessage = SimpleMessage;
 ;
 
 export interface Citation {

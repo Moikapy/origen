@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "bash(ls *)",
+      "bash(cat *)",
+      "bash(# *)",
+      "bash(rm *)",
+      "bash(rmdir *)",
+      "bash(du *)",
+      "bash(grep *)",
+      "bash(head *)",
+      "bash(git status *)",
+      "bash(git add *)",
+      "wiki_query",
+      "bash(find *)",
+      "bash(mkdir *)",
+      "write(*.md)",
+      "edit(*.md)",
+      "write(/home/moika/Documents/code/origen-chat *)",
+      "write(/home/moika/Documents/code/origen-chat/app *)",
+      "write(/home/moika/Documents/code/origen-chat/components/model-selector.tsx)",
+      "write(/home/moika/Documents/code/origen-chat/components/wiki-toggle.tsx)",
+      "run_experiment"
+    ],
+    "deny": [],
+    "ask": [],
+    "denyPaths": [],
+    "additionalDirectories": []
+  }
+}

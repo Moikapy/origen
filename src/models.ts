@@ -146,12 +146,14 @@ export const DEFAULT_MODEL_ID: ModelId = "openrouter/free";
 /** Backward compat alias */
 export const DEFAULT_MODEL: ModelId = DEFAULT_MODEL_ID;
 
-/** Models that support extended thinking */
+/** Models that support or require extended thinking */
 export const THINKING_MODELS: ReadonlySet<string> = new Set<string>([
   "anthropic/claude-sonnet-4",
   "deepseek/deepseek-r1:free",
   "google/gemini-2.5-flash-preview",
   "ollama/deepseek-r1",
+  "openrouter/free", // auto-router may select reasoning models
+  "qwen/qwen3-coder:free", // Qwen3 supports reasoning
 ]);
 
 /** Check if a model supports extended thinking */

@@ -247,7 +247,7 @@ describe('Models Edge Case Audit', () => {
       expect(supportsThinking('anthropic/claude-sonnet-4')).toBe(true);
       expect(supportsThinking('deepseek/deepseek-r1:free')).toBe(true);
       expect(supportsThinking('ollama/deepseek-r1')).toBe(true);
-      expect(supportsThinking('openrouter/free')).toBe(false);
+      expect(supportsThinking('openrouter/free')).toBe(true); // auto-router may select reasoning models
       expect(supportsThinking('ollama/llama3')).toBe(false);
     });
 

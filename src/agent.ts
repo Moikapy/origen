@@ -19,7 +19,10 @@ import {
 } from "./adapter";
 import { createWikiTools } from "./wiki-tools";
 import { LocalWikiProvider, CloudWikiProvider, type WikiProvider } from "./wiki";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage as PiAgentMessage } from "@mariozechner/pi-agent-core";
+
+/** Re-export full AgentMessage from pi-agent-core for consumers who need it. */
+export type { PiAgentMessage as AgentMessage };
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
 import type { D1Provider, Citation, UsageInfo } from "./types";
 
@@ -182,7 +185,7 @@ export async function* streamOrigen(
 
   // Convert messages — Origen's simple {role, content} maps to pi-ai UserMessages.
   // Assistant messages lack thinking/toolCall content, so we cast through the union.
-  const piMessages = convertMessages(messages) as AgentMessage[];
+  const piMessages = convertMessages(messages) as PiAgentMessage[];
 
   // Inject context into last user message
   if (context && piMessages.length > 0) {

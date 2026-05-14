@@ -28,7 +28,7 @@ export type {
   ModelConfig as OrigenModelConfig,
   WikiProvider,
   WikiScope,
-  AgentMessage,
+  SimpleMessage,
 } from "./types";
 
 
@@ -59,6 +59,7 @@ export {
   type AuthCheckResult,
   type AgentResponse,
   type StreamEvent,
+  type AgentMessage,
 } from "./agent";
 
 export { resolveModel, createEventStream, defaultCitationExtractor } from "./adapter";

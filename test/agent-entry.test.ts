@@ -156,7 +156,7 @@ describe('Agent Entry Point Edge Cases', () => {
       expect(THINKING_MODELS.has('anthropic/claude-sonnet-4')).toBe(true);
       expect(THINKING_MODELS.has('deepseek/deepseek-r1:free')).toBe(true);
       expect(supportsThinking('anthropic/claude-sonnet-4')).toBe(true);
-      expect(supportsThinking('openrouter/free')).toBe(false);
+      expect(supportsThinking('openrouter/free')).toBe(true); // auto-router may select reasoning models
     });
   });
 });
