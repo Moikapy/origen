@@ -18,13 +18,14 @@ import {
   resolveModel,
 } from "./adapter";
 import { createWikiTools } from "./wiki-tools";
+import { createMemoryTools, formatMemoryForPrompt } from "./memory-tools";
 import { LocalWikiProvider, CloudWikiProvider, type WikiProvider } from "./wiki";
 import type { AgentMessage as PiAgentMessage } from "@mariozechner/pi-agent-core";
 
 /** Re-export full AgentMessage from pi-agent-core for consumers who need it. */
 export type { PiAgentMessage as AgentMessage };
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
-import type { D1Provider, Citation, UsageInfo } from "./types";
+import type { D1Provider, Citation, UsageInfo, MemoryProvider, MemoryFact } from "./types";
 
 // ── Tool definition ───────────────────────────────────────────────────
 
@@ -69,6 +70,16 @@ export interface AgentConfig {
     rootDir?: string; // Only used for 'local'
     userId?: string;  // Required for personal scope
   };
+  /** Memory provider for the agent's persistent memory.
+   *  When provided, the agent gets memory tools and facts injected into system prompt.
+   *  The app provides storage, the agent decides what to remember.
+   */
+  memory?: MemoryProvider;
+  /** Hook to modify the LLM request payload before sending.
+   *  Use for provider-specific features like OpenRouter plugins.
+   *  Receives the params object, must return the modified params.
+   */
+  onPayload?: (params: Record<string, unknown>, model: { id: string; provider: string; baseUrl: string }) => Promise<Record<string, unknown>> | Record<string, unknown>;
 
 }
 
@@ -182,6 +193,19 @@ export async function* streamOrigen(
     finalSystemPrompt = `${systemPrompt}\n\nYou have access to a Sovereign Memory wiki with three tiers:\n- **global**: The Canon \u2014 core truths and verified knowledge. Use sparingly.\n- **community**: The Living Forum \u2014 aggregated insights, common patterns, Q\u0026A.\n- **personal**: The Private Sanctuary \u2014 user-specific preferences, history, and notes.\n\nWhen you learn something new, compound it into the wiki using wiki_update_page. When you need to recall knowledge, use wiki_query first, then wiki_get_page to read the full synthesis. Always read before you write to avoid duplicating knowledge.`;
   }
 
+  // ── Memory Integration ────────────────────────────────────────────
+  if (config.memory) {
+    const memTools = createMemoryTools(config.memory);
+    finalTools = [...finalTools, ...adaptTools(memTools, config.getD1)];
+    try {
+      const facts = await config.memory.getFacts();
+      const memoryCtx = formatMemoryForPrompt(facts);
+      if (memoryCtx) {
+        finalSystemPrompt = `${finalSystemPrompt}\n\n${memoryCtx}`;
+      }
+      finalSystemPrompt = `${finalSystemPrompt}\n\nYou have persistent memory. Use memory_save to remember important facts about the user (preferences, projects, goals). Use memory_recall to read all stored facts. Use memory_search to find specific facts. Use memory_forget to delete outdated facts. Save facts proactively when the user shares new information.`;
+    } catch { /* best-effort */ }
+  }
 
   // Convert messages — Origen's simple {role, content} maps to pi-ai UserMessages.
   // Assistant messages lack thinking/toolCall content, so we cast through the union.
@@ -207,6 +231,17 @@ export async function* streamOrigen(
   };
 
   // Create Agent
+  // Default onPayload: inject OpenRouter response-healing plugin for all OpenRouter models.
+  // This auto-recovers from truncated/malformed responses, which is the #1 cause
+  // of streaming errors. Users can override with their own onPayload.
+  const defaultOnPayload = (params: Record<string, unknown>) => {
+    // Only inject plugins for OpenRouter (not Ollama, not direct provider APIs)
+    if (model.baseUrl?.includes?.("openrouter.ai")) {
+      (params as any).plugins = [...((params as any).plugins || []), { id: "response-healing" }];
+    }
+    return params;
+  };
+
   const agent = new Agent({
     initialState: {
       systemPrompt: finalSystemPrompt,
@@ -217,6 +252,13 @@ export async function* streamOrigen(
     },
     getApiKey: resolveApiKey,
     toolExecution: config.toolExecution ?? "parallel",
+    // Chain: user onPayload (if any) runs first, then default response-healing
+    onPayload: config.onPayload
+      ? async (params: unknown, model: any) => {
+          const userModified = await config.onPayload!(params as Record<string, unknown>, model);
+          return defaultOnPayload(userModified as Record<string, unknown>);
+        }
+      : (defaultOnPayload as any),
   });
 
   // CRITICAL: Create event stream BEFORE calling prompt.

@@ -28,6 +28,29 @@ export interface D1Like {
 /** Function that provides a D1 instance to tool executors */
 export type D1Provider = () => Promise<D1Like>;
 
+/** Memory store interface for the agent's persistent memory.
+ *  The app provides the storage (D1, localStorage, etc.),
+ *  the agent decides what to remember and when.
+ */
+export interface MemoryProvider {
+  /** Get all stored facts */
+  getFacts(): Promise<MemoryFact[]>;
+  /** Save or update a fact */
+  saveFact(key: string, value: string): Promise<void>;
+  /** Delete a fact by key */
+  deleteFact(key: string): Promise<void>;
+  /** Search facts by query (for recall) */
+  searchFacts(query: string): Promise<MemoryFact[]>;
+}
+
+/** A single memory fact stored by the agent */
+export interface MemoryFact {
+  key: string;
+  value: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 /** Chat context passed from the UI (what the user is reading) */
 export interface ReadingContext {
   translation: string;

@@ -22,6 +22,8 @@
 export type {
   D1Like,
   D1Provider,
+  MemoryProvider,
+  MemoryFact,
   ReadingContext,
   Citation,
   UsageInfo,
@@ -71,3 +73,4 @@ export type { Soul, SoulConfig, SoulVoice, SoulInteraction, SoulSafety, SoulCogn
 export { LocalWikiProvider, CloudWikiProvider, CLOUD_WIKI_MIGRATION } from "./wiki";
 export { createWikiTools } from "./wiki-tools";
 export type { WikiToolInput } from "./wiki-tools";
+export { createMemoryTools, formatMemoryForPrompt } from "./memory-tools";

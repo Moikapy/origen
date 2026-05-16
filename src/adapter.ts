@@ -271,17 +271,26 @@ export function resolveModel(modelId: string, options?: ModelResolutionOptions):
 export function convertMessages(
   messages: Array<{ role: "user" | "assistant"; content: string }>
 ): Message[] {
-  // Origen uses simple string messages. pi-ai's Message union type includes
-  // UserMessage (content: string | ...[]) and AssistantMessage (content: ...[]).
-  // Our messages have role "user" (valid UserMessage) or "assistant" (simplified —
-  // real AssistantMessages have structured content, but pi-agent-core accepts
-  // simplified messages at runtime). We cast to satisfy TypeScript while
-  // maintaining runtime correctness.
-  return messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-    timestamp: Date.now(),
-  })) as Message[];
+  // pi-ai's transformMessages expects assistant message content to be an array
+  // of content blocks [{type: "text", text: "..."}], not a plain string.
+  // If we pass a string, .flatMap() crashes when processing thinking/tool blocks.
+  // User messages accept string content natively.
+  return messages.map((m) => {
+    if (m.role === "assistant" && typeof m.content === "string") {
+      return {
+        role: m.role,
+        content: m.content
+          ? [{ type: "text" as const, text: m.content }]
+          : [],
+        timestamp: Date.now(),
+      };
+    }
+    return {
+      role: m.role,
+      content: m.content,
+      timestamp: Date.now(),
+    };
+  }) as Message[];
 }
 
 // ── Context builder ───────────────────────────────────────────────────
