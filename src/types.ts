@@ -84,6 +84,64 @@ export interface UsageInfo {
   totalCost?: number;
 }
 
+/** A peer — any entity the agent can build knowledge about. */
+export interface Peer {
+  id: string;
+  type: string;
+  metadata: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** A session — a conversation window between peers. */
+export interface Session {
+  id: string;
+  peerIds: string[];
+  startedAt: number;
+  endedAt?: number;
+  metadata: Record<string, unknown>;
+}
+
+/** Metadata stored alongside a representation wiki page. */
+export interface RepresentationMeta {
+  peerId: string;
+  aspect: string;
+  sessionIds: string[];
+  lastBuiltAt: number;
+  buildModel: string;
+}
+
+/** Provider for peer and session metadata. */
+export interface PeerProvider {
+  getOrCreatePeer(id: string, type?: string, metadata?: Record<string, unknown>): Promise<Peer>;
+  getPeer(id: string): Promise<Peer | null>;
+  updatePeer(id: string, metadata: Record<string, unknown>): Promise<Peer>;
+  listPeers(type?: string): Promise<Peer[]>;
+
+  createSession(peerIds: string[], metadata?: Record<string, unknown>): Promise<Session>;
+  endSession(sessionId: string): Promise<void>;
+  getSession(sessionId: string): Promise<Session | null>;
+  getActiveSessions(peerId?: string): Promise<Session[]>;
+}
+
+/** Configuration for the peer representation system. */
+export interface PeersConfig {
+  /** Provider for peer/session metadata. Required for representation system. */
+  peerProvider: PeerProvider;
+  /** Wiki provider for reading/writing representations. Uses existing wiki config if not set. */
+  wikiProvider?: WikiProvider;
+  /** Model to use for representation reasoning. Default: same as conversation model */
+  reasoningModel?: string;
+  /** Whether to auto-build representations after conversations. Default: true */
+  autoBuild?: boolean;
+  /** Session ID for grouping multiple streamOrigen calls. Default: auto-generated per call */
+  sessionId?: string;
+  /** Peer IDs present in this conversation. Default: ["user:default"] */
+  peerIds?: string[];
+  /** Self-representation peer ID. Default: "agent:{appName}" */
+  selfPeerId?: string;
+}
+
 /** Model configuration entry */
 export interface ModelConfig {
   name: string;
