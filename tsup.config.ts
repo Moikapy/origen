@@ -8,6 +8,8 @@ export default defineConfig({
     adapter: "src/adapter.ts",
     "wiki/local": "src/wiki-local.ts",
     "wiki/cloud": "src/wiki-cloud.ts",
+    "peers/local": "src/peers-local.ts",
+    "peers/cloud": "src/peers-cloud.ts",
   },
   format: ["esm"],
   target: "es2022",
