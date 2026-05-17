@@ -11,6 +11,5 @@
  */
 
 export { LocalPeerProvider } from "./peers-local";
-// CloudPeerProvider will be added in a future task
-// export { CloudPeerProvider, PEERS_MIGRATION } from "./peers-cloud";
+export { CloudPeerProvider, PEERS_MIGRATION } from "./peers-cloud";
 export type { Peer, Session, PeerProvider, PeersConfig, RepresentationMeta } from "./types";
