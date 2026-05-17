@@ -1,6 +1,6 @@
 {
   "name": "@moikapy/origen",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,6 +34,16 @@
       "types": "./dist/wiki/cloud.d.ts",
       "import": "./dist/wiki/cloud.js",
       "default": "./dist/wiki/cloud.js"
+    },
+    "./peers/local": {
+      "types": "./dist/peers-local.d.ts",
+      "import": "./dist/peers-local.js",
+      "default": "./dist/peers-local.js"
+    },
+    "./peers/cloud": {
+      "types": "./dist/peers-cloud.d.ts",
+      "import": "./dist/peers-cloud.js",
+      "default": "./dist/peers-cloud.js"
     }
   },
   "files": [

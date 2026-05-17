@@ -25,7 +25,9 @@ import type { AgentMessage as PiAgentMessage } from "@mariozechner/pi-agent-core
 /** Re-export full AgentMessage from pi-agent-core for consumers who need it. */
 export type { PiAgentMessage as AgentMessage };
 import { DEFAULT_MODEL_ID, THINKING_MODELS, type ModelId } from "./models";
-import type { D1Provider, Citation, UsageInfo, MemoryProvider, MemoryFact } from "./types";
+import type { D1Provider, Citation, UsageInfo, MemoryProvider, MemoryFact, PeersConfig } from "./types";
+import { RepresentationEngine, formatRepresentationsForPrompt } from "./representation";
+import { createRepresentationTools } from "./representation-tools";
 
 // ── Tool definition ───────────────────────────────────────────────────
 
@@ -75,6 +77,11 @@ export interface AgentConfig {
    *  The app provides storage, the agent decides what to remember.
    */
   memory?: MemoryProvider;
+  /** Peer memory and representation system.
+   *  When provided, the agent builds Honcho-style representations about peers,
+   *  injects summaries into the system prompt, and gets tools for querying/observing.
+   */
+  peers?: PeersConfig;
   /** Hook to modify the LLM request payload before sending.
    *  Use for provider-specific features like OpenRouter plugins.
    *  Receives the params object, must return the modified params.
@@ -207,6 +214,59 @@ export async function* streamOrigen(
     } catch { /* best-effort */ }
   }
 
+  // ── Representation Integration ──────────────────────────────────────
+  let representationEngine: RepresentationEngine | null = null;
+  let representationSessionId: string | undefined;
+
+  if (config.peers) {
+    const wikiForRepr = config.peers.wikiProvider ?? (config.wiki
+      ? (config.wiki.type === 'local'
+        ? new LocalWikiProvider(config.wiki.rootDir ?? './.origen-wiki')
+        : new CloudWikiProvider(config.getD1))
+      : undefined);
+
+    if (wikiForRepr) {
+      representationEngine = new RepresentationEngine(wikiForRepr, {
+        callLLM: async (prompt: string, model: string) => {
+          try {
+            const result = await callOrigen(
+              [{ role: "user", content: prompt }],
+              {},
+              { ...config, model: (model ?? modelId) as ModelId, tools: [], maxSteps: 1 },
+            );
+            return JSON.parse(result.message);
+          } catch {
+            return {};
+          }
+        },
+        buildModel: (config.peers.reasoningModel ?? modelId) as ModelId,
+      });
+
+      // Build summary for system prompt injection
+      const peerIds = config.peers.peerIds ?? ["user:default"];
+      try {
+        const representationSummary = await representationEngine.getSummaries(peerIds);
+        if (representationSummary) {
+          finalSystemPrompt = `${finalSystemPrompt}\n\n${formatRepresentationsForPrompt(representationSummary)}`;
+        }
+      } catch { /* best-effort */ }
+
+      // Create or use session
+      if (config.peers.sessionId) {
+        representationSessionId = config.peers.sessionId;
+      } else {
+        try {
+          const session = await config.peers.peerProvider.createSession(peerIds);
+          representationSessionId = session.id;
+        } catch { /* best-effort — session not critical */ }
+      }
+
+      // Add representation tools
+      const reprTools = createRepresentationTools(config.peers.peerProvider, wikiForRepr, representationEngine);
+      finalTools = [...finalTools, ...adaptTools(reprTools, config.getD1)];
+    }
+  }
+
   // Convert messages — Origen's simple {role, content} maps to pi-ai UserMessages.
   // Assistant messages lack thinking/toolCall content, so we cast through the union.
   const piMessages = convertMessages(messages) as PiAgentMessage[];
@@ -287,6 +347,17 @@ export async function* streamOrigen(
   // If prompt() threw without emitting events, yield the error now
   if (streamError) {
     yield { type: "error", message: `Agent error: ${streamError}` };
+  }
+
+  // ── Auto-build representations after conversation ──────────────────
+  if (representationEngine && config.peers?.autoBuild !== false && representationSessionId) {
+    // Fire and forget — don't block the response
+    const reprMessages = messages.map(m => ({ role: m.role, content: m.content }));
+    const reprPeerIds = config.peers?.peerIds ?? ["user:default"];
+    representationEngine.buildFromMessages(reprMessages, {
+      peerIds: reprPeerIds,
+      sessionId: representationSessionId,
+    }).catch(() => { /* best-effort, don't fail the response */ });
   }
 }
 

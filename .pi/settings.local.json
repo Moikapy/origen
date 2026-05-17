@@ -20,7 +20,8 @@
       "write(/home/moika/Documents/code/origen-chat/app *)",
       "write(/home/moika/Documents/code/origen-chat/components/model-selector.tsx)",
       "write(/home/moika/Documents/code/origen-chat/components/wiki-toggle.tsx)",
-      "run_experiment"
+      "run_experiment",
+      "ctx_batch_execute"
     ],
     "deny": [],
     "ask": [],

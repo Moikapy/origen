@@ -31,6 +31,11 @@ export type {
   WikiProvider,
   WikiScope,
   SimpleMessage,
+  Peer,
+  Session,
+  RepresentationMeta,
+  PeerProvider,
+  PeersConfig,
 } from "./types";
 
 
@@ -74,3 +79,7 @@ export { LocalWikiProvider, CloudWikiProvider, CLOUD_WIKI_MIGRATION } from "./wi
 export { createWikiTools } from "./wiki-tools";
 export type { WikiToolInput } from "./wiki-tools";
 export { createMemoryTools, formatMemoryForPrompt } from "./memory-tools";
+export { LocalPeerProvider } from "./peers-local";
+export { CloudPeerProvider, PEERS_MIGRATION } from "./peers-cloud";
+export { RepresentationEngine, formatRepresentationsForPrompt } from "./representation";
+export { createRepresentationTools } from "./representation-tools";
