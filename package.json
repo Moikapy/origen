@@ -36,14 +36,14 @@
       "default": "./dist/wiki/cloud.js"
     },
     "./peers/local": {
-      "types": "./dist/peers-local.d.ts",
-      "import": "./dist/peers-local.js",
-      "default": "./dist/peers-local.js"
+      "types": "./dist/peers/local.d.ts",
+      "import": "./dist/peers/local.js",
+      "default": "./dist/peers/local.js"
     },
     "./peers/cloud": {
-      "types": "./dist/peers-cloud.d.ts",
-      "import": "./dist/peers-cloud.js",
-      "default": "./dist/peers-cloud.js"
+      "types": "./dist/peers/cloud.d.ts",
+      "import": "./dist/peers/cloud.js",
+      "default": "./dist/peers/cloud.js"
     }
   },
   "files": [
